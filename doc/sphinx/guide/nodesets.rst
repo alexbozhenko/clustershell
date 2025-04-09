@@ -173,7 +173,7 @@ pattern*, adding support for union (with special character *","*), difference
 (with special character *"!"*), intersection (with special character *"&"*)
 and symmetric difference (with special character *"^"*) operations. String
 patterns are read from left to right, by proceeding any character operators
-accordinately. The following example shows how you can use this feature::
+accordingly. The following example shows how you can use this feature::
 
     >>> print NodeSet("node[10-42],node46!node10")
     node[11-42,46]
@@ -269,11 +269,11 @@ using the *-r* switch (see :ref:`nodeset-regroup`).
 Overriding default groups configuration
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-It is possible to override the libary default groups configuration by changing
-the default :class:`.NodeSet` *resolver* object. Usually, this is done for
-testing or special purposes. Here is an example of how to override the
-*resolver* object using :func:`.NodeSet.set_std_group_resolver()` in order to
-use another configuration file::
+It is possible to override the library default groups configuration by
+changing the default :class:`.NodeSet` *resolver* object. Usually, this is
+done for testing or special purposes. Here is an example of how to override
+the *resolver* object using :func:`.NodeSet.set_std_group_resolver()` in order
+to use another configuration file::
 
     >>> from ClusterShell.NodeSet import NodeSet, set_std_group_resolver
     >>> from ClusterShell.NodeUtils import GroupResolverConfig

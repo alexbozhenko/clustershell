@@ -1,3 +1,203 @@
+2025-01-23 S. Thiell <sthiell@stanford.edu>
+
+	* Version 1.9.3 released. The main changes are listed below.
+
+	* Added bash completions (#563)
+
+	* Communication: sax parser: add flush() after feed() (#556)
+
+	* Additional Slurm binding options (#558 and #561)
+
+	* clush: use set instead of NodeSet for runtime progress info (#562)
+
+	* Tree: Tree: use set instead of NodeSet for gwtargets tracking (#562)
+
+	* CLI/Nodeset: omit @source: prefix for cluset -s source -L (#563) (#570)
+
+2023-09-29 S. Thiell <sthiell@stanford.edu>
+
+	* Version 1.9.2 released. The main changes are listed below.
+
+	* CLI: fix line buffering with Python 3 (#528)
+
+	* clush: fix --[r]copy dest when --dest is omitted (#525)
+
+	* NodeUtils: allow null values in cluster.yaml (#533)
+
+	* Topology: check that node groups/wildcards are non-empty (#527)
+
+	* rpm: xcat.conf.example missing (#526)
+
+2023-02-09 S. Thiell <sthiell@stanford.edu>
+
+	* Version 1.9.1 released. The main changes are listed below.
+
+	* clush: select proper last parsed config file (#511) (#512)
+
+	* setup.py: update download url and remove python 2.6 support (#508)
+
+	* setup.py: improvements for pip install and venv (#510)
+
+	* doc: correct typo 'sterr' (#513)
+
+	* Fix typos found with codespell (#514)
+
+	* RangeSet: support negative ranges (#515) (#518)
+
+	* RangeSet: remove duplicate intiter() definition (#519)
+
+2022-11-25 S. Thiell <sthiell@stanford.edu>
+
+	* Version 1.9 released. The main changes are listed below.
+
+	* clush: add --mode support with sudo and sshpass examples (#198,#234,#423)
+
+	* clush: add same arguments '--outdir=OUTDIR' and '--errdir=ERRDIR' as
+	pssh (#470)
+
+	* clush: always close stdin stream of worker when it is not used (#478)
+
+	* clush: use daemon attribute instead of deprecated setDaemon() (#479)
+
+	* slurm.conf.example: filter out more Slurm node state flags (#469)
+
+	* NodeSet: add special notation @@source to expand group names (#468)
+
+	* RangeSet: nD folding optimization (#485)
+
+	* RangeSet: support ranges with zero padding of mixed lengths (#293, #473)
+
+	* RangeSet: add explicit intiter() method to iterate over integers (#476)
+
+	* EngineClient: EnginePort improvements, add event ev_port_start() (#481)
+
+	* Tree: fix start and bufferize early writes (#482)
+
+	* Tree: fix error with intermediate gateways (#471)
+
+	* Defaults: Introduce CLUSTERSHELL_CFGDIR (#483)
+
+	* Fix for python-3.10 (#484)
+
+	* Worker: deprecate old EventHandler method signatures (#358)
+
+	* Worker: remove old last_*() methods (#226)
+
+	* tests: misc. improvements (#110, #501, #502, 503)
+
+2021-11-03 S. Thiell <sthiell@stanford.edu>
+
+	* Version 1.8.4 released. The main changes are listed below.
+
+	* RangeSetND: fix padding info when slicing using __getitem__() (#429)
+
+	* Defaults: Allow out-of-tree worker modules
+
+	* NodeUtils: allow YAML list to declare node groups (#438)
+
+	* Tree: Use default local_worker and allow overriding Defaults
+
+	* Worker/Rsh: return maxrc properly for Rsh Worker (#448)
+
+	* xCAT binding: add support for spaces in group names (#459)
+
+	* CLI/Clush: Avoid python3 error with no stdin (#460)
+
+	* CLI/Clush: use os.read() in stdin thread (#463)
+
+	* CLI/Clush: Add maxrc option to clush.conf (#451)
+
+	* CLI/Display: Add support for NO_COLOR and CLICOLOR (#428) (#432)
+
+2019-12-01 S. Thiell <sthiell@stanford.edu>
+
+	* Version 1.8.3 released. The main changes are listed below.
+
+	* NodeUtils: use yaml.safe_load() instead of default loader (#417)
+
+	* Tree-mode doesn't work with multi-hop gateways (#419)
+
+	* Silent error on Python version mismatch with gateway (#388)
+
+	* clush: support --worker/-R when topology.conf is present (#386)
+
+2019-08-12 S. Thiell <sthiell@stanford.edu>
+
+	* Version 1.8.2 released. The main changes are listed below.
+
+	* CLI/Display: use utf-8 (or non-ascii) encoding (#400)
+
+	* Defaults: add NodeSet's default folding axis (#401)
+
+	* EngineTimer: fix misuse of epsilon when firing timer (#399)
+
+	* xCAT group bindings: performance update (#398)
+
+	* Slurm group bindings: fix issue where job ids were used instead of user
+	names (#405)
+
+	* Doc: disable smartquotes (#402) and fix typo, %r is not for rank (#409)
+
+	* Packaging: add support for RHEL8 (#413)
+
+2018-10-30 S. Thiell <sthiell@stanford.edu>
+
+	* Version 1.8.1 released. The main changes are listed below.
+
+	* Tree: support offline gateways (#260)
+
+	* CLI: added the following command line options (#336):
+		--conf to specify alternative clush.conf (clush only)
+		--groupsconf to specify alternative groups.conf (all CLIs)
+
+	* NodeSet: speed-up nodeset parsing (#370)
+
+	* EventHandler: reinstate ev_error and ev_timeout as deprecated (#377)
+
+	* nodeset/cluset CLI: allow literal new line in -S, so both -S "\n" and
+	-S $'\n' will work
+
+	* nodeset/cluset CLI: handle multiline shell arguments in options (#394)
+
+2017-10-23 S. Thiell <sthiell@stanford.edu>
+
+	* Version 1.8 released.
+
+2017-10-18 S. Thiell <sthiell@stanford.edu>
+
+	* 1.8 RC1 (1.7.91) release.
+
+2017-10-14 S. Thiell <sthiell@stanford.edu>
+
+	* NodeSet.py: add node wildcard support (ticket #349).
+
+2017-10-02 S. Thiell <sthiell@stanford.edu>
+
+	* 1.8 beta2 (1.7.82) release.
+
+	* CLI: make color output legible on dark backgrounds (#334)
+	* Event API 2.0: new ev_* method signatures (#232)
+	* CLI/Clush.py: initialize logging earlier (#348)
+	* NodeUtils: ignore YAML group files with permission error (#348)
+	* CLI/Clush.py: fix mishandled broken pipe in Python 3
+	* CLI/Nodeset: display warning on misplaced set operation (#318)
+
+2017-09-01 S. Thiell <sthiell@stanford.edu>
+
+	* 1.8 beta1 (1.7.81) release.
+
+2017-08-09 S. Thiell <sthiell@stanford.edu>
+
+	* Added Python 3 support (#337).
+
+2017-07-27 S. Thiell <sthiell@stanford.edu>
+
+	* NodeUtils.py: fix external reverse node group upcall caching issue.
+
+2017-06-27 S. Thiell <sthiell@stanford.edu>
+
+	* CLI/Clush.py: add -n as an alias of --nostdin (#333).
+
 2017-04-29 S. Thiell <sthiell@stanford.edu>
 
 	* NodeSet.py: allow fully numeric node names (ticket #338).
@@ -381,7 +581,7 @@
 	CLUSTERSHELL_GW_LOG_DIR and CLUSTERSHELL_GW_LOG_LEVEL environment
 	variables from the root node.
 
-	* Communication.py: Messages are now transfered in xml payload instead of
+	* Communication.py: Messages are now transferred in xml payload instead of
 	'output' attribute for improved handling of multi-lines messages in
 	StdOutMessage and StdErrMessage.
 
@@ -652,7 +852,7 @@
 
 	* Version 1.4 released.
 
-	* NodeSet.py: Add docstring for NodeSet string arithmetics (, ! & ^),
+	* NodeSet.py: Add docstring for NodeSet string arithmetic (, ! & ^),
 	which is also called extended string pattern (trac ticket #127).
 
 2010-12-14 S. Thiell <stephane.thiell@cea.fr>
@@ -988,7 +1188,7 @@
 
 	* NodeSet.py: Added node group support with the help of the new NodeUtils
 	module (trac ticket #41). Improved parser to support basic node/nodegroups
-	arithmetics (trac ticket #44).
+	arithmetic (trac ticket #44).
 
 	* NodeUtils.py: New module that provides binding support to external node
 	group sources (trac ticket #43).
@@ -1205,7 +1405,7 @@
 2009-12-09 A. Degremont  <aurelien.degremont@cea.fr>
 
 	* scripts/nodeset.py: Protect --separator from code injection and
-	handle gracefully incorrect separtor.
+	handle gracefully incorrect separator.
 
 2009-12-09 S. Thiell <stephane.thiell@cea.fr>
 

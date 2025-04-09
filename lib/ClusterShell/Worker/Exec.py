@@ -1,7 +1,7 @@
 #
 # Copyright (C) 2014-2015 CEA/DAM
 # Copyright (C) 2014-2015 Aurelien Degremont <aurelien.degremont@cea.fr>
-# Copyright (C) 2014-2015 Stephane Thiell <sthiell@stanford.edu>
+# Copyright (C) 2014-2017 Stephane Thiell <sthiell@stanford.edu>
 #
 # This file is part of ClusterShell.
 #
@@ -35,6 +35,7 @@ from string import Template
 from ClusterShell.NodeSet import NodeSet
 from ClusterShell.Worker.EngineClient import EngineClient
 from ClusterShell.Worker.Worker import WorkerError, DistantWorker
+from ClusterShell.Worker.Worker import _eh_sigspec_invoke_compat
 
 
 def _replace_cmd(pattern, node, rank):
@@ -71,7 +72,7 @@ class ExecClient(EngineClient):
     def __init__(self, node, command, worker, stderr, timeout, autoclose=False,
                  rank=None):
         """
-        Create an EngineClient-type instance to locally run `command'.
+        Create an EngineClient-type instance to locally run *command*.
 
         :param node: will be used as key.
         """
@@ -84,7 +85,7 @@ class ExecClient(EngineClient):
 
     def _build_cmd(self):
         """
-        Build the shell command line to start the commmand.
+        Build the shell command line to start the command.
 
         Return a tuple containing command and arguments as a string or a list
         of string, and a dict of additional environment variables. None could
@@ -127,15 +128,16 @@ class ExecClient(EngineClient):
         prc = self.popen.wait()
 
         self.streams.clear()
+        self.invalidate()
 
         if prc >= 0:
-            self._on_nodeset_rc(self.key, prc)
+            self._on_nodeset_close(self.key, prc)
         elif timeout:
             assert abort, "abort flag not set on timeout"
             self.worker._on_node_timeout(self.key)
         elif not abort:
             # if process was signaled, return 128 + signum (bash-like)
-            self._on_nodeset_rc(self.key, 128 + -prc)
+            self._on_nodeset_close(self.key, 128 + -prc)
 
         self.worker._check_fini()
 
@@ -147,13 +149,13 @@ class ExecClient(EngineClient):
         else:
             self.worker._on_start(nodes)
 
-    def _on_nodeset_rc(self, nodes, rc):
+    def _on_nodeset_close(self, nodes, rc):
         """local wrapper over _on_node_rc that can also handle nodeset"""
         if isinstance(nodes, NodeSet):
             for node in nodes:
-                self.worker._on_node_rc(node, rc)
+                self.worker._on_node_close(node, rc)
         else:
-            self.worker._on_node_rc(nodes, rc)
+            self.worker._on_node_close(nodes, rc)
 
     def _on_nodeset_msgline(self, nodes, msg, sname):
         """local wrapper over _on_node_msgline that can also handle nodeset"""
@@ -222,7 +224,7 @@ class CopyClient(ExecClient):
 
     def _build_cmd(self):
         """
-        Build the shell command line to start the rcp commmand.
+        Build the shell command line to start the rcp command.
         Return an array of command and arguments.
         """
         source = _replace_cmd(self.source, self.key, self.rank)
@@ -373,9 +375,13 @@ class ExecWorker(DistantWorker):
         """
         self._close_count += 1
         assert self._close_count <= len(self._clients)
-        if self._close_count == len(self._clients) and self.eh:
-            if self._has_timeout:
+        if self._close_count == len(self._clients) and self.eh is not None:
+            # also use hasattr check because ev_timeout was missing in 1.8.0
+            if self._has_timeout and hasattr(self.eh, 'ev_timeout'):
+                # Legacy ev_timeout event
                 self.eh.ev_timeout(self)
-            self.eh.ev_close(self)
+            _eh_sigspec_invoke_compat(self.eh.ev_close, 2, self,
+                                      self._has_timeout)
+
 
 WORKER_CLASS = ExecWorker

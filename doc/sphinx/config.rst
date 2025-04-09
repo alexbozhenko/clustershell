@@ -3,34 +3,71 @@ Configuration
 
 .. highlight:: ini
 
-.. _clush-config:
-
 clush
 -----
 
+.. _clush-config:
+
+clush.conf
+^^^^^^^^^^
+
 The following configuration file defines system-wide default values for
-several *clush* tool parameters::
+several ``clush`` tool parameters::
 
     /etc/clustershell/clush.conf
 
-*clush* settings might then be overridden per user if one of the following
-files is found, in priority order::
+``clush`` settings might then be overridden (globally, or per user) if one of
+the following files is found, in priority order::
 
     $XDG_CONFIG_HOME/clustershell/clush.conf
     $HOME/.config/clustershell/clush.conf (only if $XDG_CONFIG_HOME is not defined)
+    {sys.prefix}/etc/clustershell/clush.conf
     $HOME/.local/etc/clustershell/clush.conf
     $HOME/.clush.conf (deprecated, for 1.6 compatibility only)
 
-The following table describes available *clush* config file settings.
+.. note:: The path using `sys.prefix`_ was added in version 1.9.1 and is
+   useful for Python virtual environments.
+
+In addition, if the environment variable ``$CLUSTERSHELL_CFGDIR`` is defined and
+valid, it will used instead. In such case, the following configuration file
+will be tried first for ``clush``::
+
+    $CLUSTERSHELL_CFGDIR/clush.conf
+
+The following table describes available ``clush`` config file settings.
 
 +-----------------+----------------------------------------------------+
 | Key             | Value                                              |
 +=================+====================================================+
-| fanout          | Size of the sliding window of *ssh(1)* connectors. |
+| fanout          | Size of the sliding window of connectors (eg. max  |
+|                 | number of *ssh(1)* allowed to run at the same      |
+|                 | time).                                             |
++-----------------+----------------------------------------------------+
+| confdir         | Optional list of directory paths where ``clush``   |
+|                 | should look for **.conf** files which define       |
+|                 | :ref:`run modes <clushmode-config>` that can then  |
+|                 | be activated with `--mode`. All other ``clush``    |
+|                 | config file settings defined in this table might   |
+|                 | be overridden in a run mode. Each mode section     |
+|                 | should have a name prefixed by "mode:" to clearly  |
+|                 | identify a section defining a mode. Duplicate      |
+|                 | modes are not allowed in those files.              |
+|                 | Configuration files that are not readable by the   |
+|                 | current user are ignored. The variable `$CFGDIR`   |
+|                 | is replaced by the path of the highest priority    |
+|                 | configuration directory found (where *clush.conf*  |
+|                 | resides). The default *confdir* value enables both |
+|                 | system-wide and any installed user configuration   |
+|                 | (thanks to `$CFGDIR`). Duplicate directory paths   |
+|                 | are ignored.                                       |
 +-----------------+----------------------------------------------------+
 | connect_timeout | Timeout in seconds to allow a connection to        |
 |                 | establish. This parameter is passed to *ssh(1)*.   |
 |                 | If set to 0, no timeout occurs.                    |
++-----------------+----------------------------------------------------+
+| command_prefix  | Command prefix. Generally used for specific        |
+|                 | :ref:`run modes <clush-modes>`, for example to     |
+|                 | implement *sudo(8)* support.                       |
 +-----------------+----------------------------------------------------+
 | command_timeout | Timeout in seconds to allow a command to complete  |
 |                 | since the connection has been established. This    |
@@ -50,19 +87,32 @@ The following table describes available *clush* config file settings.
 |                 | stderr, and cannot be modified.                    |
 +-----------------+----------------------------------------------------+
 | fd_max          | Maximum  number  of  open  file descriptors        |
-|                 | permitted per *clush* process (soft resource limit |
-|                 | for open files). This limit can never exceed the   |
-|                 | system (hard) limit. The *fd_max* (soft) and       |
+|                 | permitted per ``clush`` process (soft resource     |
+|                 | limit for open files). This limit can never exceed |
+|                 | the system (hard) limit. The *fd_max* (soft) and   |
 |                 | system (hard) limits should be high enough to      |
-|                 | run *clush*, although their values depend on       |
+|                 | run ``clush``, although their values depend on     |
 |                 | your fanout value.                                 |
 +-----------------+----------------------------------------------------+
 | history_size    | Set the maximum number of history entries saved in |
 |                 | the GNU readline history list. Negative values     |
 |                 | imply unlimited history file size.                 |
 +-----------------+----------------------------------------------------+
-| node_count      | Should *clush* display additional (node count)     |
+| node_count      | Should ``clush`` display additional (node count)   |
 |                 | information in buffer header? (yes/no)             |
++-----------------+----------------------------------------------------+
+| maxrc           | Should ``clush`` return the largest of command     |
+|                 | return codes? (yes/no)                             |
+|                 | If set to no (the default), ``clush`` exit status  |
+|                 | gives no information about command return codes,   |
+|                 | but rather reports on ``clush`` execution itself   |
+|                 | (zero indicating a successful run).                |
++-----------------+----------------------------------------------------+
+| password_prompt | Enable password prompt and password forwarding to  |
+|                 | stdin? (yes/no)                                    |
+|                 | Generally used for specific                        |
+|                 | :ref:`run modes <clush-modes>`, for example to     |
+|                 | implement interactive *sudo(8)* support.           |
 +-----------------+----------------------------------------------------+
 | verbosity       | Set the verbosity level: 0 (quiet), 1 (default),   |
 |                 | 2 (verbose) or more (debug).                       |
@@ -95,6 +145,36 @@ The following table describes available *clush* config file settings.
 |                 | rsh/rcp command.                                   |
 +-----------------+----------------------------------------------------+
 
+.. _clushmode-config:
+
+Run modes
+^^^^^^^^^
+
+Since version 1.9, ``clush`` has support for run modes, which are special
+:ref:`clush-config` settings with a given name. Two run modes are provided in
+example configuration files that can be copied and modified. They implement
+password-based authentication with *sshpass(1)* and support of interactive
+*sudo(8)* with password.
+
+To use a run mode with ``clush --mode``, install a configuration file in one
+of :ref:`clush-config`'s ``confdir`` (usually ``clush.conf.d``).  Only
+configuration files ending in **.conf** are scanned. If the user running
+``clush`` doesn't have read access to a configuration file, it is ignored.
+When ``--mode`` is specified, you can display all available run modes for
+the current user by enabling debug mode (``-d``).
+
+Example of a run mode configuration file (eg.
+``/etc/clustershell/clush.conf.d/sudo.conf``) to add support for interactive
+sudo::
+
+    [mode:sudo]
+    password_prompt: yes
+    command_prefix: /usr/bin/sudo -S -p "''"
+
+System administrators or users can easily create additional run modes by
+adding configuration files to :ref:`clush-config`'s ``confdir``.
+
+More details about using run modes can be found :ref:`here <clush-modes>`.
 
 .. _groups-config:
 
@@ -121,12 +201,22 @@ The following configuration file defines system-wide default values for
 
     /etc/clustershell/groups.conf
 
-*groups.conf* settings might then be overridden per user if one of the
-following files is found, in priority order::
+*groups.conf* settings might then be overridden (globally, or per user) if one
+of the following files is found, in priority order::
 
     $XDG_CONFIG_HOME/clustershell/groups.conf
     $HOME/.config/clustershell/groups.conf (only if $XDG_CONFIG_HOME is not defined)
+    {sys.prefix}/etc/clustershell/groups.conf
     $HOME/.local/etc/clustershell/groups.conf
+
+.. note:: The path using `sys.prefix`_ was added in version 1.9.1 and is
+   useful for Python virtual environments.
+
+In addition, if the environment variable ``$CLUSTERSHELL_CFGDIR`` is defined and
+valid, it will used instead. In such case, the following configuration file
+will be tried first for *groups.conf*::
+
+    $CLUSTERSHELL_CFGDIR/groups.conf
 
 This makes possible for an user to have its own *node groups* configuration.
 If no readable configuration file is found, group support will be disabled but
@@ -236,6 +326,11 @@ Here is an example of **/etc/clustershell/groups.d/cluster.yaml**::
         compute: 'node[0001-0288]'
         gpu: 'node[0001-0008]'
 
+        servers:                         # example of yaml list syntax for nodes
+            - 'server001'                # in a group
+            - 'server002,server101'                
+            - 'server[003-006]'
+
         cpu_only: '@compute!@gpu'        # example of inline set operation
                                          # define group @cpu_only with node[0009-0288]
 
@@ -248,6 +343,10 @@ Here is an example of **/etc/clustershell/groups.d/cluster.yaml**::
         mds: 'mds[1-4]'
         oss: 'oss[0-15]'
         rbh: 'rbh[1-2]'
+
+
+If you wish to define an empty group (with no nodes), you can either use an
+empty string ``''`` or any valid YAML null value (``null`` or ``~``).
 
 .. highlight:: console
 
@@ -310,6 +409,23 @@ before executing shell commands:
 * *$SOURCE* is replaced by current source name (see an usage example just
   below)
 
+.. _group-external-caching:
+
+Caching considerations
+""""""""""""""""""""""
+
+External command results are cached in memory, for a limited amount of time,
+to avoid multiple similar calls.
+
+The optional parameter **cache_time**, when specified within a group source
+section, defines the number of seconds each upcall result is kept in cache,
+in memory only. Please note that caching is actually only useful for
+long-running programs (like daemons) that are using node groups, not for
+one-shot commands like :ref:`clush <clush-tool>` or
+:ref:`cluset <cluset-tool>`/:ref:`nodeset <nodeset-tool>`.
+
+The default value of **cache_time** is 3600 seconds.
+
 Multiple sources section
 """"""""""""""""""""""""
 
@@ -350,6 +466,208 @@ is not doable. But if the call return zero, for instance, for a non-existing
 group, the user will not receive any error when trying to resolve such unknown
 group. The desired behavior is up to the system administrator.
 
+.. _group-slurm-bindings:
+
+Slurm group bindings
+""""""""""""""""""""
+
+Enable Slurm node group bindings by renaming the example configuration file
+usually installed as ``/etc/clustershell/groups.conf.d/slurm.conf.example`` to
+``slurm.conf``. Three group sources are defined in this file and are detailed
+below. Each section comes with a long and short names (for convenience), but
+actually defines a same group source.
+
+While examples below are based on the :ref:`nodeset-tool` tool, all Python
+tools using ClusterShell and the :class:`.NodeSet`  class will automatically
+benefit from these additional node groups.
+
+.. highlight:: ini
+
+The first section **slurmpart,sp** defines a group source based on Slurm
+partitions. Each group is named after the partition name and contains the
+partition's nodes::
+
+    [slurmpart,sp]
+    map: sinfo -h -o "%N" -p $GROUP
+    all: sinfo -h -o "%N"
+    list: sinfo -h -o "%R"
+    reverse: sinfo -h -N -o "%R" -n $NODE
+
+.. highlight:: console
+
+Example of use with :ref:`nodeset <nodeset-tool>` on a cluster having two Slurm
+partitions named *kepler* and *pascal*::
+
+    $ nodeset -s sp -ll
+    @sp:kepler cluster-[0001-0065]
+    @sp:pascal cluster-[0066-0068]
+
+.. highlight:: ini
+
+The second section **slurmresv,sr** defines a group source based on Slurm
+reservations. Each group is based on a different reservation and contains
+the nodes currently in that reservation::
+
+    [slurmresv,sr]
+    map: scontrol -o show reservation $GROUP | grep -Po 'Nodes=\K[^ ]+'
+    all: scontrol -o show reservation | grep -Po 'Nodes=\K[^ ]+'
+    list: scontrol -o show reservation | grep -Po 'ReservationName=\K[^ ]+'
+    cache_time: 60
+
+.. highlight:: console
+
+Example of use on a cluster having a reservation in place for an upcoming
+system maintenance::
+
+    $ nodeset -s slurmresv -l
+    @slurmresv:Maintenance_2025-02-04
+    $ clush -w @slurmresv:Maintenance_2025-02-04 uptime
+
+.. highlight:: ini
+
+The next section **slurmstate,st** defines a group source based on Slurm
+node states. Each group is based on a different state name and contains the
+nodes currently in that state::
+
+    [slurmstate,st]
+    map: sinfo -h -o "%N" -t $GROUP
+    all: sinfo -h -o "%N"
+    list: sinfo -h -o "%T" | tr -d '*~#$@+'
+    reverse: sinfo -h -N -o "%T" -n $NODE | tr -d '*~#$@+'
+    cache_time: 60
+
+Here, :ref:`cache_time <group-external-caching>` is set to 60 seconds instead
+of the default (3600s) to avoid caching results in memory for too long, in
+case of state change (this is only useful for long-running processes, not
+one-shot commands).
+
+.. highlight:: console
+
+Example of use with :ref:`nodeset <nodeset-tool>` to get the current nodes that
+are in the Slurm state *drained*::
+
+    $ nodeset -f @st:drained
+    cluster-[0058,0067]
+
+.. highlight:: ini
+
+The next section **slurmjob,sj** defines a group source based on Slurm jobs.
+Each group is based on a running job ID and contains the nodes currently
+allocated for this job::
+
+    [slurmjob,sj]
+    map: squeue -h -j $GROUP -o "%N"
+    list: squeue -h -o "%i" -t R
+    reverse: squeue -h -w $NODE -o "%i"
+    cache_time: 60
+
+The next section **slurmuser,su** defines a group source based on Slurm users.
+Each group is based on a username and contains the nodes currently
+allocated for jobs belonging to the username::
+
+    [slurmuser,su]
+    map: squeue -h -u $GROUP -o "%N" -t R
+    list: squeue -h -o "%u" -t R
+    reverse: squeue -h -w $NODE -o "%i"
+    cache_time: 60
+
+.. highlight:: console
+
+Example of use with :ref:`clush <clush-tool>` to execute a command on all nodes
+with running jobs of username::
+
+    $ clush -bw@su:username 'df -Ph /scratch'
+    $ clush -bw@su:username 'du -s /scratch/username'
+
+:ref:`cache_time <group-external-caching>` is also set to 60 seconds instead
+of the default (3600s) to avoid caching results in memory for too long, because
+this group source is likely very dynamic (this is only useful for long-running
+processes, not one-shot commands).
+
+.. highlight:: ini
+
+The next section **slurmaccount,sa** defines a group source based on Slurm
+accounts. Each group is based on a account and contains the nodes where there
+are running jobs under this account::
+
+    [slurmaccount,sa]
+    map: squeue -h -A $GROUP -o "%N" -t R
+    list: squeue -h -o "%a" -t R
+    reverse: squeue -h -w $NODE -o "%a" 2>/dev/null || true
+    cache_time: 60
+
+.. highlight:: console
+
+For example, to find all nodes that have running jobs from the account ``ruthm``::
+
+    $ cluset -f @sa:ruthm
+    sh02-01n57,sh03-09n51,sh03-11n10
+
+.. highlight:: ini
+
+The next section **slurmqos,sq** defines a group source based on Slurm QoS.
+Each group is based on a qos and contains the nodes where there are running
+jobs under this qos::
+
+    [slurmqos,sq]
+    map: squeue -h -q $GROUP -o "%N" -t R
+    list: squeue -h -o "%q" -t R
+    reverse: squeue -h -w $NODE -o "%q" 2>/dev/null || true
+    cache_time: 60
+
+.. highlight:: console
+
+Then it is easy to find nodes currently running jobs in a specified qos, here
+in qos ``long`` for example::
+
+    $ cluset -f @slurmqos:long
+    sh02-01n[01-02,16-17,45,51,56],sh03-01n[02,29,61]
+
+.. _group-xcat-bindings:
+
+xCAT group bindings
+"""""""""""""""""""
+
+Enable xCAT node group bindings by renaming the example configuration file
+usually installed as ``/etc/clustershell/groups.conf.d/xcat.conf.example`` to
+``xcat.conf``. A single group source is defined in this file and is detailed
+below.
+
+.. warning:: xCAT installs its own `nodeset`_ command which
+   usually takes precedence over ClusterShell's :ref:`nodeset-tool` command.
+   In that case, simply use :ref:`cluset <cluset-tool>` instead.
+
+While examples below are based on the :ref:`cluset-tool` tool, all Python
+tools using ClusterShell and the :class:`.NodeSet`  class will automatically
+benefit from these additional node groups.
+
+.. highlight:: ini
+
+The section **xcat** defines a group source based on xCAT static node groups::
+
+    [xcat]
+
+    # list the nodes in the specified node group
+    map: lsdef -s -t node $GROUP | cut -d' ' -f1
+    
+    # list all the nodes defined in the xCAT tables
+    all: lsdef -s -t node | cut -d' ' -f1
+    
+    # list all groups
+    list: lsdef -t group | cut -d' ' -f1
+
+.. highlight:: console
+
+Example of use with :ref:`cluset-tool`::
+
+    $ lsdef -s -t node dtn
+    sh-dtn01  (node)
+    sh-dtn02  (node)
+    
+    $ cluset -s xcat -f @dtn
+    sh-dtn[01-02]
+
+.. highlight:: text
 
 .. _defaults-config:
 
@@ -368,12 +686,55 @@ The following configuration file defines ClusterShell system-wide defaults::
 
     /etc/clustershell/defaults.conf
 
-*defaults.conf* settings might then be overridden per user if one of the
-following files is found, in priority order::
+*defaults.conf* settings might then be overridden (globally, or per user) if
+one of the following files is found, in priority order::
 
     $XDG_CONFIG_HOME/clustershell/defaults.conf
     $HOME/.config/clustershell/defaults.conf (only if $XDG_CONFIG_HOME is not defined)
+    {sys.prefix}/etc/clustershell/defaults.conf
     $HOME/.local/etc/clustershell/defaults.conf
 
+In addition, if the environment variable ``$CLUSTERSHELL_CFGDIR`` is defined and
+valid, it will used instead. In such case, the following configuration file
+will be tried first for ClusterShell defaults::
+
+    $CLUSTERSHELL_CFGDIR/defaults.conf
+
+Use case: rsh
+^^^^^^^^^^^^^^
+
+If your cluster uses a rsh variant like ``mrsh`` or ``krsh``, you may want to
+change it in the library defaults.
+
+An example file is usually available in
+``/usr/share/doc/clustershell-*/examples/defaults.conf-rsh`` and could be
+copied to ``/etc/clustershell/defaults.conf`` or to an alternate path
+described above. Basically, the change consists in defining an alternate
+distant worker by Python module name as follow::
+
+    [task.default]
+    distant_workername: Rsh
+
+
+.. _defaults-config-slurm:
+
+Use case: Slurm
+^^^^^^^^^^^^^^^
+
+If your cluster naming scheme has multiple dimensions, as in ``node-93-02``, we
+recommend that you disengage some nD folding when using Slurm, which is
+currently unable to detect some multidimensional node indexes when not
+explicitly enclosed with square brackets.
+
+To do so, define ``fold_axis`` to -1 in the :ref:`defaults-config` so that nD
+folding is only computed on the last axis (seems to work best with Slurm)::
+
+    [nodeset]
+    fold_axis: -1
+
+That way, node sets computed by ClusterShell tools can be passed to Slurm
+without error.
 
 .. _ConfigParser: http://docs.python.org/library/configparser.html
+.. _nodeset: https://xcat-docs.readthedocs.io/en/stable/guides/admin-guides/references/man8/nodeset.8.html
+.. _sys.prefix: https://docs.python.org/3/library/sys.html#sys.prefix

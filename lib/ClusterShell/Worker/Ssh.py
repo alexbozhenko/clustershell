@@ -38,7 +38,7 @@ class SshClient(ExecClient):
 
     def _build_cmd(self):
         """
-        Build the shell command line to start the ssh commmand.
+        Build the shell command line to start the ssh command.
         Return an array of command and arguments.
         """
 
@@ -85,7 +85,7 @@ class ScpClient(CopyClient):
 
     def _build_cmd(self):
         """
-        Build the shell command line to start the scp commmand.
+        Build the shell command line to start the scp command.
         Return an array of command and arguments.
         """
 
@@ -120,23 +120,23 @@ class ScpClient(CopyClient):
         # Disable passphrase/password querying
         # When used together with sshpass this must be overwritten
         # by a custom option to "-oBatchMode=no".
-        cmd_l.append("-oBatchMode=yes")
+        #cmd_l.append("-oBatchMode=yes")
 
 
         if self.reverse:
             if user:
-                cmd_l.append("%s@%s:%s" % (user, self.key, self.source))
+                cmd_l.append("%s@[%s]:%s" % (user, self.key, self.source))
             else:
-                cmd_l.append("%s:%s" % (self.key, self.source))
+                cmd_l.append("[%s]:%s" % (self.key, self.source))
 
             cmd_l.append(os.path.join(self.dest, "%s.%s" % \
                          (os.path.basename(self.source), self.key)))
         else:
             cmd_l.append(self.source)
             if user:
-                cmd_l.append("%s@%s:%s" % (user, self.key, self.dest))
+                cmd_l.append("%s@[%s]:%s" % (user, self.key, self.dest))
             else:
-                cmd_l.append("%s:%s" % (self.key, self.dest))
+                cmd_l.append("[%s]:%s" % (self.key, self.dest))
 
         return (cmd_l, None)
 

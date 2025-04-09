@@ -1,17 +1,16 @@
-#!/usr/bin/env python
 # ClusterShell.Defaults test suite
 # Written by S. Thiell
 
+"""Unit test for ClusterShell.Defaults"""
 
-"""Unit test for ClusterShell Defaults module"""
+import os
+import sys
+import shutil
 
 from textwrap import dedent
-import sys
 import unittest
 
-sys.path.insert(0, '../lib')
-
-from TLib import make_temp_file
+from TLib import make_temp_file, make_temp_dir
 
 from ClusterShell.Defaults import Defaults, _task_print_debug
 
@@ -28,6 +27,8 @@ class Defaults000NoConfigTest(unittest.TestCase):
 
     def test_000_initial(self):
         """test Defaults initial values"""
+        # nodeset
+        self.assertEqual(self.defaults.fold_axis, ())
         # task_default
         self.assertFalse(self.defaults.stderr)
         self.assertTrue(self.defaults.stdout_msgtree)
@@ -48,6 +49,9 @@ class Defaults000NoConfigTest(unittest.TestCase):
 
     def test_001_setattr(self):
         """test Defaults setattr"""
+        # nodeset
+        self.defaults.fold_axis = (0, 2)
+        self.assertEqual(self.defaults.fold_axis, (0, 2))
         # task_default
         self.defaults.stderr = True
         self.assertTrue(self.defaults.stderr)
@@ -98,6 +102,21 @@ class Defaults000NoConfigTest(unittest.TestCase):
         self.assertTrue(task.default("distant_worker") is WorkerSsh)
         task_terminate()
 
+        tdir = make_temp_dir()
+        modfile = open(os.path.join(tdir.name, 'OutOfTree.py'), 'w')
+        modfile.write(dedent("""
+            class OutOfTreeWorker(object):
+                pass
+            WORKER_CLASS = OutOfTreeWorker"""))
+        modfile.flush()
+        modfile.close()
+        sys.path.append(tdir.name)
+        self.defaults.distant_workername = 'OutOfTree'
+        task = task_self(self.defaults)
+        self.assertEqual(task.default("distant_worker").__name__, 'OutOfTreeWorker')
+        task_terminate()
+        tdir.cleanup()
+
     def test_005_misc_value_errors(self):
         """test Defaults misc value errors"""
         task_terminate()
@@ -121,6 +140,8 @@ class Defaults001ConfigTest(unittest.TestCase):
         self.defaults = None
 
     def _assert_default_values(self):
+        # nodeset
+        self.assertEqual(self.defaults.fold_axis, ())
         # task_default
         self.assertFalse(self.defaults.stderr)
         self.assertTrue(self.defaults.stdout_msgtree)
@@ -141,13 +162,16 @@ class Defaults001ConfigTest(unittest.TestCase):
 
     def test_000_empty(self):
         """test Defaults config file (empty)"""
-        conf_test = make_temp_file('')
+        conf_test = make_temp_file(b'')
         self.defaults = Defaults(filenames=[conf_test.name])
         self._assert_default_values()
 
     def test_001_defaults(self):
         """test Defaults config file (defaults)"""
         conf_test = make_temp_file(dedent("""
+            [nodeset]
+            fold_axis: 
+
             [task.default]
             stderr: false
             stdout_msgtree: true
@@ -163,13 +187,16 @@ class Defaults001ConfigTest(unittest.TestCase):
             fanout: 64
             grooming_delay: 0.25
             connect_timeout: 10
-            command_timeout: 0"""))
+            command_timeout: 0""").encode('ascii'))
         self.defaults = Defaults(filenames=[conf_test.name])
         self._assert_default_values()
 
     def test_002_changed(self):
         """test Defaults config file (changed)"""
         conf_test = make_temp_file(dedent("""
+            [nodeset]
+            fold_axis: -1
+
             [task.default]
             stderr: true
             stdout_msgtree: false
@@ -185,8 +212,53 @@ class Defaults001ConfigTest(unittest.TestCase):
             fanout: 256
             grooming_delay: 0.5
             connect_timeout: 12.5
-            command_timeout: 30.5"""))
+            command_timeout: 30.5""").encode('ascii'))
         self.defaults = Defaults(filenames=[conf_test.name])
+        # nodeset
+        self.assertEqual(self.defaults.fold_axis, (-1,))
+        # task_default
+        self.assertTrue(self.defaults.stderr)
+        self.assertFalse(self.defaults.stdout_msgtree)
+        self.assertFalse(self.defaults.stderr_msgtree)
+        self.assertEqual(self.defaults.engine, 'select')
+        self.assertEqual(self.defaults.port_qlimit, 1000) # 1.8 compat
+        self.assertFalse(self.defaults.auto_tree)
+        self.assertEqual(self.defaults.local_workername, 'none')
+        self.assertEqual(self.defaults.distant_workername, 'pdsh')
+        # task_info
+        self.assertTrue(self.defaults.debug)
+        self.assertEqual(self.defaults.fanout, 256)
+        self.assertEqual(self.defaults.grooming_delay, 0.5)
+        self.assertEqual(self.defaults.connect_timeout, 12.5)
+
+    def test_003_engine(self):
+        """test Defaults config file (engine section)"""
+        conf_test = make_temp_file(dedent("""
+            [nodeset]
+            fold_axis: -1
+
+            [task.default]
+            stderr: true
+            stdout_msgtree: false
+            stderr_msgtree: false
+            engine: select
+            auto_tree: false
+            local_workername: none
+            distant_workername: pdsh
+
+            [task.info]
+            debug: true
+            fanout: 256
+            grooming_delay: 0.5
+            connect_timeout: 12.5
+            command_timeout: 30.5
+
+            [engine]
+            port_qlimit: 1000""").encode('ascii'))
+        self.defaults = Defaults(filenames=[conf_test.name])
+        # nodeset
+        self.assertEqual(self.defaults.fold_axis, (-1,))
+        # task_default
         self.assertTrue(self.defaults.stderr)
         self.assertFalse(self.defaults.stdout_msgtree)
         self.assertFalse(self.defaults.stderr_msgtree)

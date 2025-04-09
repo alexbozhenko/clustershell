@@ -1,5 +1,6 @@
-#!/usr/bin/env python
-# StreamWorker test suite
+"""
+Unit test for StreamWorker
+"""
 
 import os
 import unittest
@@ -20,33 +21,34 @@ class StreamTest(unittest.TestCase):
         """test empty StreamWorker"""
         # that makes no sense but well...
         # handler=None is supported by base Worker class
-        self.run_worker(StreamWorker(handler=None))
+        worker = StreamWorker(handler=None)
+        self.run_worker(worker)
+        # GH Issue #488:
+        # An unconfigured engine client does not abort by itself...
+        worker.abort()
+        # Check that we are in a clean state now
+        self.assertEqual(len(task_self()._engine._clients), 0)
 
     def test_002_pipe_readers(self):
         """test StreamWorker bound to several pipe readers"""
 
-        streams = { "pipe1_reader": "Some data to read from a pipe",
-                    "stderr": "Error data to read using special keyword stderr",
-                    "pipe2_reader": "Other data to read from another pipe",
-                    "pipe3_reader": "Cool data to read from a third pipe" }
+        streams = { "pipe1_reader": b"Some data to read from a pipe",
+                    "stderr": b"Error data to read using special keyword stderr",
+                    "pipe2_reader": b"Other data to read from another pipe",
+                    "pipe3_reader": b"Cool data to read from a third pipe" }
 
         class TestH(EventHandler):
             def __init__(self, testcase):
                 self.snames = set()
                 self.testcase = testcase
 
-            def ev_error(self, worker):
-                # test that ev_error is called in case of 'stderr' stream name
-                self.testcase.assertEqual(worker.current_sname, "stderr")
-                self.recv_msg(worker.current_errmsg)
+            def ev_read(self, worker, node, sname, msg):
+                self.recv_msg(sname, msg)
 
-            def ev_read(self, worker):
-                self.recv_msg(worker.current_msg)
-
-            def recv_msg(self, msg):
+            def recv_msg(self, sname, msg):
                 self.testcase.assertTrue(len(self.snames) < len(streams))
-                self.testcase.assertEqual(streams[worker.current_sname], msg)
-                self.snames.add(worker.current_sname)
+                self.testcase.assertEqual(streams[sname], msg)
+                self.snames.add(sname)
                 if len(self.snames) == len(streams):
                     # before finishing, try to add another pipe at
                     # runtime: this is NOT allowed
@@ -86,12 +88,12 @@ class StreamTest(unittest.TestCase):
                 self.pickup_count = 0
                 self.hup_count = 0
 
-            def ev_pickup(self, worker):
+            def ev_pickup(self, worker, node):
                 self.pickup_count += 1
 
-            def ev_read(self, worker):
-                self.testcase.assertEqual(worker.current_sname, "pipe1")
-                worker.write(worker.current_msg, "pipe2")
+            def ev_read(self, worker, node, sname, msg):
+                self.testcase.assertEqual(sname, "pipe1")
+                worker.write(msg, "pipe2")
 
             def ev_timer(self, timer):
                 # call set_write_eof on specific stream after some delay
@@ -99,12 +101,12 @@ class StreamTest(unittest.TestCase):
                 self.worker = 'DONE'
                 worker.set_write_eof("pipe2")
 
-            def ev_hup(self, worker):
+            def ev_hup(self, worker, node, rc):
                 # ev_hup called at the end (after set_write_eof is called)
                 self.hup_count += 1
                 self.testcase.assertEqual(self.worker, 'DONE')
                 # no rc code should be set
-                self.testcase.assertEqual(worker.current_rc, None)
+                self.testcase.assertEqual(rc, None)
 
         # create a StreamWorker instance bound to several pipes
         hdlr = TestH(self)
@@ -113,7 +115,7 @@ class StreamTest(unittest.TestCase):
 
         rfd1, wfd1 = os.pipe()
         worker.set_reader("pipe1", rfd1)
-        os.write(wfd1, "Some data\n")
+        os.write(wfd1, b"Some data\n")
         os.close(wfd1)
 
         rfd2, wfd2 = os.pipe()
@@ -121,7 +123,7 @@ class StreamTest(unittest.TestCase):
 
         timer1 = task_self().timer(1.0, handler=hdlr)
         self.run_worker(worker)
-        self.assertEqual(os.read(rfd2, 1024), "Some data")
+        self.assertEqual(os.read(rfd2, 1024), b"Some data")
         os.close(rfd2)
         # wfd2 should be closed by CS
         self.assertRaises(OSError, os.close, wfd2)
@@ -130,6 +132,7 @@ class StreamTest(unittest.TestCase):
         # check pickup/hup
         self.assertEqual(hdlr.hup_count, 1)
         self.assertEqual(hdlr.pickup_count, 1)
+        self.assertTrue(task_self().max_retcode() is None)
 
     def test_004_timeout_on_open_stream(self):
         """test StreamWorker with timeout set on open stream"""
@@ -140,15 +143,15 @@ class StreamTest(unittest.TestCase):
         rfd1, wfd1 = os.pipe()
         worker.set_reader("pipe1", rfd1, closefd=False)
         # Write some chars without line break (worst case)
-        os.write(wfd1, "Some data")
+        os.write(wfd1, b"Some data")
         # TEST: Do not close wfd1 to simulate open stream
 
         # Need to enable pipe1_msgtree
         task_self().set_default("pipe1_msgtree", True)
         self.run_worker(worker)
 
-        # Timeout occured - read buffer should have been flushed
-        self.assertEqual(worker.read(sname="pipe1"), "Some data")
+        # Timeout occurred - read buffer should have been flushed
+        self.assertEqual(worker.read(sname="pipe1"), b"Some data")
 
         # closefd was set, we should be able to close pipe fds
         os.close(rfd1)
@@ -164,21 +167,22 @@ class StreamTest(unittest.TestCase):
                 self.ev_hup_called = False
                 self.ev_timeout_called = False
 
-            def ev_pickup(self, worker):
+            def ev_pickup(self, worker, node):
                 self.ev_pickup_called = True
 
-            def ev_read(self, worker):
+            def ev_read(self, worker, node, sname, msg):
                 self.ev_read_called = True
-                self.testcase.assertEqual(worker.current_sname, "pipe1")
-                self.testcase.assertEqual(worker.current_msg, "Some data")
+                self.testcase.assertEqual(sname, "pipe1")
+                self.testcase.assertEqual(msg, b"Some data")
 
-            def ev_hup(self, worker):
+            def ev_hup(self, worker, node, rc):
                 # ev_hup is called but no rc code should be set
                 self.ev_hup_called = True
-                self.testcase.assertEqual(worker.current_rc, None)
+                self.testcase.assertEqual(rc, None)
 
-            def ev_timeout(self, worker):
-                self.ev_timeout_called = True
+            def ev_close(self, worker, timedout):
+                if timedout:
+                    self.ev_timeout_called = True
 
         hdlr = TestH(self)
         worker = StreamWorker(handler=hdlr, timeout=0.5)
@@ -187,7 +191,7 @@ class StreamTest(unittest.TestCase):
         rfd1, wfd1 = os.pipe()
         worker.set_reader("pipe1", rfd1)
         # Write some chars without line break (worst case)
-        os.write(wfd1, "Some data")
+        os.write(wfd1, b"Some data")
         # TEST: Do not close wfd1 to simulate open stream
 
         self.run_worker(worker)
@@ -215,8 +219,9 @@ class StreamTest(unittest.TestCase):
 
             def ev_written(self, worker, node, sname, size):
                 self.check_written += 1
-                self.testcase.assertEqual(os.read(self.rfd, 1024), "initial")
+                self.testcase.assertEqual(os.read(self.rfd, 1024), b"initial")
                 worker.abort()
+                worker.abort()  # safe but no effect
 
         rfd, wfd = os.pipe()
 
@@ -224,7 +229,7 @@ class StreamTest(unittest.TestCase):
         worker = StreamWorker(handler=hdlr)
 
         worker.set_writer("test", wfd) # closefd=True
-        worker.write("initial", "test")
+        worker.write(b"initial", "test")
 
         self.run_worker(worker)
         self.assertEqual(hdlr.check_written, 1)
@@ -244,8 +249,9 @@ class StreamTest(unittest.TestCase):
 
             def ev_written(self, worker, node, sname, size):
                 self.check_written += 1
-                self.testcase.assertEqual(os.read(self.rfd, 1024), "initial")
+                self.testcase.assertEqual(os.read(self.rfd, 1024), b"initial")
                 worker.abort()
+                worker.abort()  # safe but no effect
 
         rfd, wfd = os.pipe()
 
@@ -253,7 +259,7 @@ class StreamTest(unittest.TestCase):
         worker = StreamWorker(handler=hdlr)
 
         worker.set_writer("test", wfd) # closefd=True
-        worker.write("initial", "test")
+        worker.write(b"initial", "test")
         worker.set_write_eof()
 
         self.run_worker(worker)
@@ -274,17 +280,17 @@ class StreamTest(unittest.TestCase):
                 self.check_hup = 0
                 self.check_written = 0
 
-            def ev_hup(self, worker):
+            def ev_hup(self, worker, node, rc):
                 self.check_hup += 1
 
             def ev_written(self, worker, node, sname, size):
                 self.check_written += 1
-                self.testcase.assertEqual(os.read(self.rfd, 1024), "initial")
+                self.testcase.assertEqual(os.read(self.rfd, 1024), b"initial")
                 # close reader, that will stop the StreamWorker
                 os.close(self.rfd)
                 # The following write call used to raise broken pipe before
                 # version 1.7.2.
-                worker.write("final")
+                worker.write(b"final")
 
         rfd, wfd = os.pipe()
 
@@ -292,8 +298,36 @@ class StreamTest(unittest.TestCase):
         worker = StreamWorker(handler=hdlr)
 
         worker.set_writer("test", wfd) # closefd=True
-        worker.write("initial", "test")
+        worker.write(b"initial", "test")
 
         self.run_worker(worker)
         self.assertEqual(hdlr.check_hup, 1)
         self.assertEqual(hdlr.check_written, 1)
+
+    def test_009_worker_abort_on_close(self):
+        """test StreamWorker abort() on closing worker"""
+
+        class TestH(EventHandler):
+            def __init__(self, testcase, rfd):
+                self.testcase = testcase
+                self.rfd = rfd
+                self.check_close = 0
+
+            def ev_close(self, worker, timedout):
+                self.check_close += 1
+                self.testcase.assertFalse(timedout)
+                os.close(self.rfd)
+                worker.abort()
+                worker.abort()  # safe but no effect
+
+        rfd, wfd = os.pipe()
+
+        hdlr = TestH(self, rfd)
+        worker = StreamWorker(handler=hdlr)
+
+        worker.set_writer("test", wfd)  # closefd=True
+        worker.write(b"initial", "test")
+        worker.set_write_eof()
+
+        self.run_worker(worker)
+        self.assertEqual(hdlr.check_close, 1)

@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 #
 # Copyright (C) 2010-2015 CEA/DAM
 #
@@ -84,11 +83,20 @@ class OptionParser(optparse.OptionParser):
                         type="safestring", dest="groupsource",
                         help="optional groups.conf(5) group source to use")
 
-    def install_config_options(self, filename=''):
-        """Install config options override"""
+    def install_clush_config_options(self):
+        """Install config options for clush"""
+        # config file override (--conf)
+        self.add_option("--conf", action="store", metavar='FILE',
+                        help="use alternate config file for clush.conf(5)")
+        # config file option overrides (-O)
         self.add_option("-O", "--option", action="append", metavar="KEY=VALUE",
                         dest="option", default=[],
-                        help="override any key=value %s options" % filename)
+                        help="override any key=value clush.conf(5) options")
+
+    def install_groupsconf_option(self):
+        """Install an alternate groups.conf file option"""
+        self.add_option("--groupsconf", action="store", metavar='FILE',
+                        help="use alternate config file for groups.conf(5)")
 
     def install_nodes_options(self):
         """Install nodes selection options"""
@@ -106,7 +114,7 @@ class OptionParser(optparse.OptionParser):
                           metavar="GROUP", type="safestring",
                           help="exclude nodes from this group")
         optgrp.add_option("-E", "--engine", action="store", dest="engine",
-                          choices=["auto"] + PreferredEngine.engines.keys(),
+                          choices=["auto"] + list(PreferredEngine.engines),
                           default="auto", help=optparse.SUPPRESS_HELP)
         optgrp.add_option("--hostfile", "--machinefile", action="append",
                           dest="hostfile", default=[], metavar='FILE',
@@ -164,7 +172,7 @@ class OptionParser(optparse.OptionParser):
                               help="node / line content separator string "
                                    "(default: ':')")
         else:
-            optgrp.add_option("-S", action="store_true", dest="maxrc",
+            optgrp.add_option("-S", "--maxrc", action="store_true", dest="maxrc",
                               help="return the largest of command return codes")
 
         if msgtree_mode:
@@ -185,6 +193,8 @@ class OptionParser(optparse.OptionParser):
                           "colors (never, always or auto)")
         optgrp.add_option("--diff", action="store_true", dest="diff",
                           help="show diff between gathered outputs")
+        optgrp.add_option("--outdir", action="store", dest="outdir", help="output directory for stdout files (OPTIONAL)")
+        optgrp.add_option("--errdir", action="store", dest="errdir", help="output directory for stderr files (OPTIONAL)")
         self.add_option_group(optgrp)
 
     def _copy_callback(self, option, opt_str, value, parser):
@@ -229,6 +239,8 @@ class OptionParser(optparse.OptionParser):
                           dest="command_timeout",
                           help="limit time for command to run on the node",
                           type="float")
+        optgrp.add_option("-m", "--mode", action="store", dest="mode",
+                          help="run mode; define MODEs in <confdir>/*.conf")
         optgrp.add_option("-R", "--worker", action="store", dest="worker",
                           help="worker name to use for command execution "
                                "('exec', 'rsh', 'ssh', etc. default is 'ssh')")
@@ -268,6 +280,10 @@ class OptionParser(optparse.OptionParser):
                           default=False,
                           help="list all active group sources (see "
                                "groups.conf(5))")
+        # special hidden command for bash completion scripts
+        optgrp.add_option("--completion", action="store_true",
+                          dest="completion",
+                          default=False, help=optparse.SUPPRESS_HELP)
         self.add_option_group(optgrp)
 
     def install_nodeset_operations(self):

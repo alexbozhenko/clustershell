@@ -5,16 +5,18 @@ nodeset
 
 .. highlight:: console
 
+.. note:: The :ref:`cluset-tool` command is introduced in ClusterShell
+          version 1.7.3 as an alternative to the **nodeset** command to avoid
+          conflicts with the **nodeset** command from xCAT. Users are
+          encouraged to transition to using **cluset** for their
+          range/node/group set management tasks.
+
 The *nodeset* command enables easy manipulation of node sets, as well as
 node groups, at the command line level. As it is very user-friendly and
 efficient, the *nodeset* command can quickly improve traditional cluster
 shell scripts. It is also full-featured as it provides most of the
 :class:`.NodeSet` and :class:`.RangeSet` class methods (see also
 :ref:`class-NodeSet`, and :ref:`class-RangeSet`).
-
-
-The *nodeset* command supports RFC 1123 (which defines naming standards for
-host names) except that a node name can't be entirely numeric.
 
 Most of the examples in this section are using simple indexed node sets,
 however, *nodeset* supports multidimensional node sets, like *dc[1-2]n[1-99]*,
@@ -30,8 +32,10 @@ One exclusive command must be specified to *nodeset*, for example::
 
     $ nodeset --expand node[13-15,17-19]
     node13 node14 node15 node17 node18 node19
+
     $ nodeset --count node[13-15,17-19]
     6
+
     $ nodeset --fold node1-ipmi node2-ipmi node3-ipmi
     node[1-3]-ipmi
 
@@ -261,6 +265,8 @@ represented using the step syntax (57% of them)::
     node[1,3,5,7,34,39,99]
 
 
+.. _nodeset-zeropadding:
+
 Zero-padding
 ^^^^^^^^^^^^
 
@@ -270,7 +276,7 @@ are automatically padded with zeros as well. For example::
 
     $ nodeset -e node[08-11]
     node08 node09 node10 node11
-    
+
     $ nodeset -f node001 node002 node003 node005
     node[001-003,005]
 
@@ -280,23 +286,20 @@ also supported, for example::
     $ nodeset -e node[000-012/4]
     node000 node004 node008 node012
 
-Nevertheless, care should be taken when dealing with padding, as a zero-padded
-node name has priority over a normal one, for example::
+Since v1.9, mixed length padding is allowed, for example::
 
-    $ nodeset -f node1 node02
-    node[01-02]
+    $ nodeset -f node2 node01 node001
+    node[2,01,001]
 
-To clarify, *nodeset* will always try to coalesce node names by their
-numerical index first (without taking care of any zero-padding), and then will
-use the first zero-padding rule encountered. In the following example, the
-first zero-padding rule found is *node01*'s one::
+When mixed length zero-padding is encountered, indexes with smaller padding
+length are returned first, as you can see in the example above (``2`` comes
+before ``01``).
 
-    $ nodeset -f node01 node002
-    node[01-02]
+Since v1.9, when using node sets with multiple dimensions, each dimension (or
+axis) may also use mixed length zero-padding::
 
-That said, you can see it is not possible to mix *node01* and *node001* in the
-same node set (not supported by the :class:`.NodeSet` class), but that would
-be a tricky case anyway!
+    $ nodeset -f foo1bar1 foo1bar00 foo1bar01 foo004bar1 foo004bar00 foo004bar01
+    foo[1,004]bar[1,00-01]
 
 
 Leading and trailing digits
@@ -327,7 +330,13 @@ Examples with both bracket leading and trailing digits::
     $ nodeset --autostep=auto -f node-00[1-6]0
     node-[0010-0060/10]
 
-Still, using this syntax can be error-prone especially if used with node sets
+Example with leading digit and mixed length zero padding (supported since
+v1.9)::
+
+    $ nodeset -f node1[00-02,000-032/8]
+    node[100-102,1000,1008,1016,1024,1032]
+
+Using this syntax can be error-prone especially if used with node sets
 without 0-padding or with the */step* syntax and also requires additional
 processing by the parser. In general, we recommend writing the whole rangeset
 inside the brackets.
@@ -335,6 +344,8 @@ inside the brackets.
 .. warning:: Using the step syntax (seen above) within a bracket-delimited
    range set is not compatible with **trailing** digits. For instance, this is
    **not** supported: ``node-00[1-6/2]0``
+
+.. _nodeset-arithmetic:
 
 Arithmetic operations
 ^^^^^^^^^^^^^^^^^^^^^
@@ -352,7 +363,7 @@ the union operation will be computed, for example::
 
     $ nodeset -f node[1-3] node[4-7]
     node[1-7]
-    
+
     $ nodeset -f node[1-3] node[2-7] node[5-8]
     node[1-8]
 
@@ -399,6 +410,7 @@ Arithmetic operations usage examples::
     $ nodeset -f node[1-9] -x node6 -i node[6-12]
     node[7-9]
 
+.. _nodeset-extended-patterns:
 
 *Extended patterns* support
 """""""""""""""""""""""""""
@@ -418,6 +430,8 @@ patterns" (inherited from :class:`.NodeSet` extended pattern feature, see
     
     $ nodeset -f node[1-9]^node[6-11]
     node[1-5,10-11]
+
+.. _nodeset-special:
 
 Special operations
 ^^^^^^^^^^^^^^^^^^
@@ -567,6 +581,9 @@ useful to fold along the last axis whatever number of dimensions used::
     $ nodeset --axis=-1 -f comp-[1-2]-[1-36],login-[1-2]
     comp-1-[1-36],comp-2-[1-36],login-[1-2]
 
+See also the :ref:`defaults-config-slurm` of Library Defaults for changing it
+permanently.
+
 .. _nodeset-pick:
 
 Picking N node(s) at random
@@ -632,9 +649,13 @@ configured group sources and also display the default group source (unless
 Listing group names
 """""""""""""""""""
 
-If the **list** external shell command is configured (see
-:ref:`node groups configuration <groups-config>`), it is possible to list
-available groups *from the default source* with the following commands::
+It is always possible to list the groups from a group source if the source is
+:ref:`file-based <group-file-based>`.
+If the source is an :ref:`external group source <group-external-sources>`, the
+**list** upcall must be configured (see also:
+:ref:`node groups configuration <groups-config>`).
+
+To list available groups *from the default source*, use the following command::
 
     $ nodeset -l
     @mgnt
@@ -643,7 +664,7 @@ available groups *from the default source* with the following commands::
     @login
     @compute
 
-Or, to list groups *from a specific group source*, use *-l* in conjunction
+To list groups *from a specific group source*, use *-l* in conjunction
 with *-s* (or *--groupsource*)::
 
     $ nodeset -l -s slurm
@@ -664,6 +685,49 @@ Or, to list groups *from all available group sources*, use *-L* (or
 
 You can also use ``nodeset -ll`` or ``nodeset -LL`` to see each group's
 associated node sets.
+
+.. _nodeset-rawgroupnames:
+
+Listing group names in expressions
+""""""""""""""""""""""""""""""""""
+
+ClusterShell 1.9 introduces a new operator **@@** optionally followed by a
+source name (e.g. **@@source**) to access the list of *raw group names* of
+the source (without the **@** prefix). If no source is specified (as in *just*
+**@@**), the default group source is used (see :ref:`groups_config_conf`).
+The **@@** operator may be used in any node set expression to manipulate group
+names as a node set.
+
+Example with the default group source::
+
+    $ nodeset -l
+    @mgnt
+    @mds
+    @oss
+    @login
+    @compute
+    
+    $ nodeset -e @@
+    compute login mds mgnt oss
+
+Example with a group source "rack" that defines group names from rack
+locations in a data center::
+
+    $ nodeset -l -s rack
+    @rack:J1
+    @rack:J2
+    @rack:J3
+    
+    $ nodeset -f @@rack
+    J[1-3]
+
+A set of valid, indexed group sources is also accepted by the **@@** operator
+(e.g. **@@dc[1-3]**).
+
+
+.. warning:: An error is generated when using **@@** in an expression if the
+             source is not valid (e.g. invalid name, not configured or upcalls
+             not currently working).
 
 
 Using node groups in basic commands
@@ -774,7 +838,8 @@ Arithmetic operations on node groups
 """"""""""""""""""""""""""""""""""""
 
 Arithmetic and special operations (as explained for node sets in
-nodeset-arithmetic and nodeset-special are also supported with node groups.
+:ref:`nodeset-arithmetic` and :ref:`nodeset-special` are also supported with
+node groups.
 Any group name can be used in lieu of a node set, where it will be substituted
 for all nodes in that group before processing requested operations. Some
 typical examples are::
@@ -830,6 +895,67 @@ Also, version 1.7 introduces a notation extension ``@*`` (or ``@SOURCE:*``)
 that has been added to quickly represent *all nodes* (please refer to
 :ref:`clush-all-nodes` for more details).
 
+
+.. _nodeset-all-nodes:
+
+Selecting all nodes
+"""""""""""""""""""
+
+The option ``-a`` (without argument) can be used to select **all** nodes from
+a group source (see :ref:`node groups configuration <groups-config>` for more
+details on special **all** external shell command upcall). Example of use for
+the default group source::
+
+    $ nodeset -a -f
+    example[4-6,32-159]
+
+Use ``-s/--groupsource`` to select another group source.
+
+If not properly configured, the ``-a`` option may lead to runtime errors
+like::
+
+    $ nodeset -s mybrokensource -a -f
+    nodeset: External error: Not enough working methods (all or map + list)
+        to get all nodes
+
+A similar option is available with :ref:`clush-tool`, see
+:ref:`selecting all nodes with clush <clush-all-nodes>`.
+
+Node wildcards
+""""""""""""""
+
+ClusterShell 1.8 introduces node wildcards: ``*`` means match zero or more
+characters of any type; ``?`` means match exactly one character of any type.
+
+Any wildcard mask found is matched against **all** nodes from the group source
+(see :ref:`nodeset-all-nodes`).
+
+This can be especially useful for server farms, or when cluster node names
+differ.  Say that your :ref:`group configuration <groups-config>` is set to
+return the following "all nodes"::
+
+    $ nodeset -f -a
+    bckserv[1-2],dbserv[1-4],wwwserv[1-9]
+
+Then, you can use wildcards to select particular nodes, as shown below::
+
+    $ nodeset -f 'www*'
+    wwwserv[1-9]
+
+    $ nodeset -f 'www*[1-4]'
+    wwwserv[1-4]
+
+    $ nodeset -f '*serv1'
+    bckserv1,dbserv1,wwwserv1
+
+Wildcard masks are resolved prior to
+:ref:`extended patterns <nodeset-extended-patterns>`, but each mask is
+evaluated as a whole node set operand. In the example below, we select
+all nodes matching ``*serv*`` before removing all nodes matching ``www*``::
+
+    $ nodeset  -f '*serv*!www*'
+    bckserv[1-2],dbserv[1-4]
+
 .. _nodeset-rangeset:
 
 Range sets
@@ -883,8 +1009,8 @@ The following examples illustrate these last points::
 Arithmetic and special operations
 """""""""""""""""""""""""""""""""
 
-All arithmetic operations, as seen for node sets (cf. nodeset-arithmetic), are
-available for range sets, for example::
+All arithmetic operations, as seen for node sets (cf.
+:ref:`cluset-arithmetic`), are available for range sets, for example::
 
     $ nodeset -fR 1-14 -x 10-20
     1-9
@@ -896,8 +1022,8 @@ available for range sets, for example::
     1-9,15-20
 
 For now, there is no *extended patterns* syntax for range sets as for node
-sets (cf. nodeset-extended-patterns). However, as the union operator ``,``
-is available natively by design, such expressions are still allowed::
+sets (cf. :ref:`nodeset-extended-patterns`). However, as the union operator
+``,`` is available natively by design, such expressions are still allowed::
 
     $ nodeset -fR 4-10,1-2
     1-2,4-10
